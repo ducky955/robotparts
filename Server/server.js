@@ -1,15 +1,36 @@
 const express = require("express");
 const cors = require("cors");
+const fs = require("fs");
 const app = express();
-const DEVICE_TIMEOUT_MS = 30000; // 30 seconds
 
+const DEVICE_TIMEOUT_MS = 30000; // 30 seconds
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+/* ------------------ LOAD PERSISTENT DATA ------------------ */
+
 let messages = [];
 let devices = {};
+
+if (fs.existsSync("messages.json")) {
+  try {
+    messages = JSON.parse(fs.readFileSync("messages.json", "utf8"));
+    console.log("Loaded saved messages:", messages.length);
+  } catch (err) {
+    console.error("Error loading messages.json:", err);
+  }
+}
+
+if (fs.existsSync("devices.json")) {
+  try {
+    devices = JSON.parse(fs.readFileSync("devices.json", "utf8"));
+    console.log("Loaded saved devices:", Object.keys(devices).length);
+  } catch (err) {
+    console.error("Error loading devices.json:", err);
+  }
+}
 
 /* ------------------ DASHBOARD UI ------------------ */
 
@@ -26,7 +47,9 @@ app.get("/", (req, res) => {
           margin-right:8px;
         "></span>
         <strong>${d.name}</strong>
-        <span style="color:#666; font-size:12px;">(Last seen: ${d.lastSeen})</span>
+        <span style="color:#666; font-size:12px;">
+          (Last seen: ${new Date(d.lastSeen).toLocaleString()})
+        </span>
       </li>
     `)
     .join("");
@@ -43,6 +66,7 @@ app.get("/", (req, res) => {
   res.send(`
     <html>
       <body style="font-family: sans-serif; max-width: 700px; margin: auto; padding: 20px;">
+
         <div style="padding: 15px; border: 2px solid #ccc; border-radius: 8px; margin-bottom: 20px; background: #f7f7f7;">
           <h2 style="margin-top:0;">Devices Online</h2>
           <ul style="list-style:none; padding-left:0;">${deviceList}</ul>
@@ -60,7 +84,21 @@ app.get("/", (req, res) => {
             <br><br>
             <button type="submit" style="padding:10px 20px; background:#1a73e8; color:white; border:none; border-radius:6px; cursor:pointer; font-size:16px;">Send</button>
           </form>
+
+          <form method="POST" action="/clear-messages" onsubmit="return confirm('Are you sure you want to delete ALL messages?');">
+            <button type="submit" style="
+              margin-top:10px;
+              padding:10px 20px;
+              background:#d9534f;
+              color:white;
+              border:none;
+              border-radius:6px;
+              cursor:pointer;
+              font-size:16px;
+            ">Clear All Messages</button>
+          </form>
         </div>
+
       </body>
     </html>
   `);
@@ -72,8 +110,20 @@ app.get("/", (req, res) => {
 app.post("/send-message", (req, res) => {
   const text = req.body.msg || req.body.text || "";
   const time = new Date().toLocaleString();
+
   messages.push({ text, time });
+
+  fs.writeFileSync("messages.json", JSON.stringify(messages, null, 2));
+
   console.log("New message:", text);
+  res.redirect("/");
+});
+
+// Clear all messages
+app.post("/clear-messages", (req, res) => {
+  messages = [];
+  fs.writeFileSync("messages.json", JSON.stringify(messages, null, 2));
+  console.log("All messages cleared");
   res.redirect("/");
 });
 
@@ -100,23 +150,24 @@ app.post("/register", (req, res) => {
     return res.json({ status: "error", message: "Missing id or name" });
   }
 
-
   devices[id] = {
-  name,
-  lastSeen: Date.now()
-};
+    name,
+    lastSeen: Date.now()
+  };
 
+  fs.writeFileSync("devices.json", JSON.stringify(devices, null, 2));
 
   console.log(`Device registered: ${name} (${id})`);
   res.json({ status: "ok" });
 });
 
-/// Device heartbeat
+// Device heartbeat
 app.post("/heartbeat", (req, res) => {
   const id = req.body.id || req.query.id;
 
   if (devices[id]) {
     devices[id].lastSeen = Date.now();
+    fs.writeFileSync("devices.json", JSON.stringify(devices, null, 2));
   } else {
     console.log("Unknown device heartbeat:", req.body);
   }
@@ -124,6 +175,7 @@ app.post("/heartbeat", (req, res) => {
   res.json({ status: "ok" });
 });
 
+/* ------------------ DEVICE TIMEOUT CLEANUP ------------------ */
 
 setInterval(() => {
   const now = Date.now();
@@ -132,9 +184,12 @@ setInterval(() => {
     if (now - devices[id].lastSeen > DEVICE_TIMEOUT_MS) {
       console.log(`Device timed out: ${devices[id].name} (${id})`);
       delete devices[id];
+      fs.writeFileSync("devices.json", JSON.stringify(devices, null, 2));
     }
   }
-}, 5000); // check every 5 seconds
+}, 5000);
+
+/* ------------------ START SERVER ------------------ */
 
 app.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
