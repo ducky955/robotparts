@@ -13,3 +13,7 @@ I'm creating a wifi based tex display, which displays a message based on a local
 ![alt text](image.png)
 
 The microcontroller pulls a message off a local server, and onto the lcd screen. A light is used to indicate connection to wifi. I'm thinking about using buttons to put the device into sleep mode, to save energy.
+
+## What is done so far?
+
+I have the basic framework of how this project will work. I will be creating the code for Raspberry Pi Pico, ESP32, and other microcontrollers.
