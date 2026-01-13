@@ -1,4 +1,4 @@
-# This is a list of parts I will need. Please read them
+# This is a list of parts I will need AND a small overveiw of what I'm doing. Please read this carefully
 ## if you dont buy them i will be sad
 
 # ✧ More important ✧
